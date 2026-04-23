@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Log files
+*.log
+logs/
+
+# Data files
+*.pcd
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.pth
+*.pt
+*.ckpt
+
+# TensorBoard
+runs/
+events*
+*.tfevents.*
+
+# Checkpoints
+checkpoints/
+saved_models/
+
+# Temporary files
+*.tmp
+temp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Custom
+training_*.log
+TRAIN_COMMAND.txt
+START_NOW.sh
+RESTART_TRAINING.sh
+FINAL_TRAIN.sh
+train_final.sh
+run_training_direct.sh
+
+# Backup files (just in case)
+*.bak
+*.backup
+*_backup*
+*_broken*
+*_fixed*
+*_old*
