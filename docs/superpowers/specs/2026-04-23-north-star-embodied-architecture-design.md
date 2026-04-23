@@ -475,3 +475,135 @@ whole-body 控制中硬切换模型版本是不安全的。confidence、dangerou
 - Phase 4 使用哪一类轻量多模态本地大脑模型。
 - 每个线上 Phase 对应的线下验证装置和可行范围。
 
+## 17. 子规格拆分与后续文档
+
+本文是北极星架构的根蓝图，不应承载所有技术细节。后续具体设计应拆成子规格文档，每份子规格回答一个明确问题，并回连到本文的阶段路线和模块边界。
+
+推荐子规格如下。
+
+### 17.1 Phase 0 ABI 与基础设施设计
+
+建议文件：`docs/superpowers/specs/YYYY-MM-DD-phase-0-abi-and-infra-design.md`
+
+需要回答：
+
+- 仿真环境、机器人资产、训练 runner、评测 runner 的最小闭环是什么。
+- `observation / command / action / confidence / dangerous_sig` 的第一版 schema。
+- 数据日志、模型版本元数据、评测结果格式。
+- 哪些字段必须从 Phase 0 固化，哪些字段允许后续扩展。
+- 如何避免 ABI 过早固化，同时不让后续阶段频繁重写接口。
+
+依赖关系：这是所有后续子规格的前置文档，应优先编写。
+
+### 17.2 Phase 1 基础运动底座与学校最小闭环设计
+
+建议文件：`docs/superpowers/specs/YYYY-MM-DD-phase-1-locomotion-school-loop-design.md`
+
+需要回答：
+
+- 站立、行走、转向、速度跟踪、抗扰动、brace、stop、fallback 的任务定义。
+- Phase 1 follower 的模型结构、训练流程、奖励结构和验收指标。
+- 学校最小闭环在 Phase 1 的数据采集、片段评分、上传和候选模型发布流程。
+- 如何验证候选模型不会破坏基础运动能力。
+- Phase 1 线上通过后，线下分支需要验证哪些内容。
+
+依赖关系：依赖 Phase 0 ABI。
+
+### 17.3 School System 数据、训练与发布设计
+
+建议文件：`docs/superpowers/specs/YYYY-MM-DD-school-system-data-and-release-design.md`
+
+需要回答：
+
+- 本地经验精炼的规则、评分函数和压缩格式。
+- 学校经验池 schema、数据版本、可回放样本格式。
+- 训练、聚合、评测、候选模型注册和发布流程。
+- 学校如何输出能力边界、失败模式摘要和模型版本摘要给云端大脑。
+- 本地 adapter-only 更新与学校共享主模型替换如何协同。
+
+依赖关系：依赖 Phase 0 ABI；从 Phase 1 开始落地，后续阶段逐步增强。
+
+### 17.4 Whole-Body Follower 统一策略设计
+
+建议文件：`docs/superpowers/specs/YYYY-MM-DD-whole-body-follower-unified-policy-design.md`
+
+需要回答：
+
+- follower 的输入、输出、模型结构和训练阶段。
+- 单策略、shared trunk + multi-head、MoE、拼接式 baseline 的对照实验。
+- Phase 2.5-A/B/C 的具体验收指标。
+- 如何证明上下肢、质心、末端、接触点被同一全身协调表示约束。
+- follower 何时可以作为 teacher、MoE expert 或 candidate generator 进入小脑训练。
+
+依赖关系：依赖 Phase 0 ABI 和 Phase 1 基础运动能力；服务 Phase 2 与 Phase 2.5。
+
+### 17.5 小脑光轴学习与消融设计
+
+建议文件：`docs/superpowers/specs/YYYY-MM-DD-cerebellum-light-axis-learning-design.md`
+
+需要回答：
+
+- generator 和 selector/gate 的模块边界。
+- 无语义动作序列如何用于 latent dynamics、预测、候选光轴生成和风险估计。
+- 专家/运动库、RL rollout、高精度 follower teacher、MoE、真实或高保真片段校准的候选方案。
+- 消融实验的实验组、对照组、指标和决策门槛。
+- 小脑最终如何输出 `pose / velocity / torque_pose / confidence / dangerous_sig` 的结构化中层命令光轴。
+
+依赖关系：依赖 Phase 0 ABI、Phase 2.5 whole-body follower 验证和学校系统数据设计。
+
+### 17.6 Gate、Fallback 与模型版本切换设计
+
+建议文件：`docs/superpowers/specs/YYYY-MM-DD-model-gate-fallback-design.md`
+
+需要回答：
+
+- 稳定模型、候选模型、adapter、MoE expert 和 fallback policy 的版本关系。
+- gate blending 公式、置信度估计、dangerous signal 触发条件。
+- 影子推理、回放评估、低风险试运行和灰度接管流程。
+- 如何避免硬切换造成动作突变。
+- 切换、回滚和失败日志如何回流学校。
+
+依赖关系：依赖学校系统设计、小脑光轴设计和 follower 统一策略设计。
+
+### 17.7 本地大脑语义意图接口设计
+
+建议文件：`docs/superpowers/specs/YYYY-MM-DD-local-brain-semantic-intent-interface-design.md`
+
+需要回答：
+
+- 本地大脑输出的高维语义意图结构。
+- 目标、速度、力度评估、避让关键点、对象约束、空间约束和任务偏好的字段设计。
+- 本地大脑如何接收小脑/follower 的能力边界、失败反馈和执行状态。
+- 语义意图如何映射到小脑 generator 的输入，而不是直接变成低层轨迹。
+- Phase 4 的任务集、评测指标和失败样本回流规则。
+
+依赖关系：依赖小脑光轴设计和 gate/fallback 设计；服务 Phase 4。
+
+### 17.8 线上/线下验证树与指标设计
+
+建议文件：`docs/superpowers/specs/YYYY-MM-DD-validation-tree-and-metrics-design.md`
+
+需要回答：
+
+- 每个 Phase 的线上仿真验收指标。
+- 每个 Phase 线上通过后派生的线下真实或高保真验证分支。
+- 线下失败如何记录为风险并回流，而不阻塞线上主线。
+- 回归测试矩阵如何覆盖前序 Phase 能力。
+- 学校系统如何使用线上/线下验证结果更新数据优先级和训练目标。
+
+依赖关系：横向依赖所有 Phase 子规格；可以在 Phase 0 后先写初版，再随阶段迭代。
+
+### 17.9 推荐编写顺序
+
+建议按以下顺序继续细化：
+
+1. Phase 0 ABI 与基础设施设计。
+2. School System 数据、训练与发布设计。
+3. Phase 1 基础运动底座与学校最小闭环设计。
+4. Whole-Body Follower 统一策略设计。
+5. 线上/线下验证树与指标设计。
+6. 小脑光轴学习与消融设计。
+7. Gate、Fallback 与模型版本切换设计。
+8. 本地大脑语义意图接口设计。
+
+其中 Phase 0 ABI 应最先完成，因为它决定后续文档的共同语言。学校系统设计应尽早完成，因为它从 Phase 1 开始就是横向核心架构，而不是后期附加模块。
