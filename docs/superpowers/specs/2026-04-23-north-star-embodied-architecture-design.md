@@ -38,6 +38,7 @@
 - 小脑：generator + selector/gate，生成并选择全身协调光轴。
 - whole-body follower：稳定执行层，跟随小脑输出并支持平滑 fallback。
 - 学校系统：经验接收、高价值样本池、训练或聚合、评测、版本发布、失败回流。
+- Motion Prior / Mimic Teacher：外部动作模仿方法、运动先验、teacher、expert 和 regression oracle 的横向接入边界。
 - Y 形数据流：本地经验精炼、本地轻量适配、学校群体学习。
 - 模型版本机制：候选模型注册、影子评估、双模型并行、灰度发布、gate fallback 和审计记录。
 - 验证体系：线上仿真主线 + 线下真实或高保真验证分支。
@@ -120,6 +121,31 @@ follower 负责：
 - 连续 fallback。
 - 对 confidence 下降或 dangerous_sig 上升做稳定响应。
 - 当 gate 判断退化时进入保守恢复行为。
+
+### 4.5 Motion Prior / Mimic Teacher
+
+Motion Prior / Mimic Teacher 是学校训练和验证体系中的横向辅助层，不是机器人运行时的第四个大脑。
+
+它可以使用 DeepMimic、AMP、ASE、MaskedMimic、ProtoMotions、ResMimic 或类似方法提供：
+
+- 动作模仿训练方法。
+- motion prior。
+- retargeted motion dataset。
+- privileged teacher。
+- teacher-student distillation target。
+- MoE expert 候选。
+- regression oracle。
+
+它不能绕过：
+
+- NorthStar ABI。
+- episode logger 和 replay reader。
+- school sample envelope。
+- public-only deployment 约束。
+- gate/fallback。
+- release gate。
+
+第三方预训练模型和公开 motion dataset 必须记录来源、许可证、形态映射、仿真器和 privileged input。未通过许可证或 runtime 约束审查的模型，只能作为 `teacher_only`、`oracle_only` 或 `research_only` 资产。
 
 ## 5. 学校系统分离
 
@@ -593,7 +619,21 @@ whole-body 控制中硬切换模型版本是不安全的。confidence、dangerou
 
 依赖关系：横向依赖所有 Phase 子规格；可以在 Phase 0 后先写初版，再随阶段迭代。
 
-### 17.9 推荐编写顺序
+### 17.9 Mimic Motion Prior 集成与应用测试设计
+
+建议文件：`docs/superpowers/specs/YYYY-MM-DD-mimic-motion-prior-integration-design.md`
+
+需要回答：
+
+- 主流 Mimic 系列算法、开源框架、数据集和预训练模型可在哪些 Phase 应用测试。
+- Mimic policy 何时是 teacher、motion prior、expert、baseline、oracle 或 runtime candidate。
+- Mimic rollout 如何进入 NorthStar episode、school sample、release gate 和 capability summary。
+- 第三方模型如何受 public-only、gate/fallback、许可证和 lineage 约束。
+- Phase 2.5 与 Phase 3 如何用 Mimic 路线做 unified policy 和 light-axis 消融。
+
+依赖关系：依赖 Phase 0 ABI、Whole-Body Follower、School System、Gate/Fallback 和验证树设计；服务 Phase 1/2/2.5/3 的训练与对照实验。
+
+### 17.10 推荐编写顺序
 
 建议按以下顺序继续细化：
 
@@ -601,9 +641,10 @@ whole-body 控制中硬切换模型版本是不安全的。confidence、dangerou
 2. School System 数据、训练与发布设计。
 3. Phase 1 基础运动底座与学校最小闭环设计。
 4. Whole-Body Follower 统一策略设计。
-5. 线上/线下验证树与指标设计。
-6. 小脑光轴学习与消融设计。
-7. Gate、Fallback 与模型版本切换设计。
-8. 本地大脑语义意图接口设计。
+5. Mimic Motion Prior 集成与应用测试设计。
+6. 线上/线下验证树与指标设计。
+7. 小脑光轴学习与消融设计。
+8. Gate、Fallback 与模型版本切换设计。
+9. 本地大脑语义意图接口设计。
 
 其中 Phase 0 ABI 应最先完成，因为它决定后续文档的共同语言。学校系统设计应尽早完成，因为它从 Phase 1 开始就是横向核心架构，而不是后期附加模块。

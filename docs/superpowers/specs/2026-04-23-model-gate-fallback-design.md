@@ -12,6 +12,7 @@
 - [Phase 1 基础运动底座与学校最小闭环设计](./2026-04-23-phase-1-locomotion-school-loop-design.md)
 - [Whole-Body Follower 统一策略设计](./2026-04-23-whole-body-follower-unified-policy-design.md)
 - [小脑光轴学习与消融设计](./2026-04-23-cerebellum-light-axis-learning-design.md)
+- [Mimic Motion Prior 集成与应用测试设计](./2026-05-01-mimic-motion-prior-integration-design.md)
 
 ## 1. 目标
 
@@ -985,6 +986,23 @@ Phase 4 本地大脑需要读取：
 - known failure modes。
 
 本地大脑不直接覆盖 gate 决策，只能通过语义意图和风险偏好影响小脑输入。
+
+### 21.4 与 Mimic Motion Prior
+
+Mimic-derived candidate、teacher、expert 或 oracle 必须先声明：
+
+- source manifest。
+- license class。
+- privileged input dependency。
+- retargeting gap score。
+- runtime_allowed。
+
+默认规则：
+
+- `runtime_allowed=false` 时只能 shadow inference，不能接管。
+- `license_class != runtime_approved` 时不得进入 runtime release package。
+- 依赖未来姿态、完整参考 motion、仿真真值或 heightmap privileged input 的模型只能作为 teacher/oracle。
+- 通过 release gate 前，Mimic candidate 的初始接管比例必须为 0。
 
 ## 22. 推荐文件布局
 

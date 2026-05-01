@@ -11,6 +11,7 @@
 - [School System 数据、训练与发布设计](./2026-04-23-school-system-data-and-release-design.md)
 - [Phase 1 基础运动底座与学校最小闭环设计](./2026-04-23-phase-1-locomotion-school-loop-design.md)
 - [Whole-Body Follower 统一策略设计](./2026-04-23-whole-body-follower-unified-policy-design.md)
+- [Mimic Motion Prior 集成与应用测试设计](./2026-05-01-mimic-motion-prior-integration-design.md)
 
 ## 1. 目标
 
@@ -297,7 +298,24 @@ selector/gate 最终输出：
 
 - 每个 expert 必须输出 whole-body action 或 whole-body light-axis，不允许只输出孤立肢体动作。
 
-### 6.4 RL Rollout 扩展
+### 6.4 Mimic Motion Prior
+
+来自 DeepMimic、AMP、ASE、MaskedMimic、ProtoMotions、ResMimic 或类似方法的动作模仿 rollout、motion prior、retargeted motion dataset 和 teacher-student 样本。
+
+用途：
+
+- 提供 pose trend、velocity trend、contact transition 和 recovery motion prior。
+- 作为 generator 候选光轴分布的预训练信号。
+- 作为 selector 的 motion quality 或 naturalness oracle。
+- 与 Phase 2.5 unified/shared trunk/MoE 结果做消融对照。
+
+限制：
+
+- Mimic prior 不能直接绕过 selector/gate。
+- 依赖未来姿态、heightmap 或 privileged observation 的模型只能作为 teacher/oracle。
+- Mimic-derived 样本必须记录 source manifest、retargeting gap、license class 和 runtime_allowed。
+
+### 6.5 RL Rollout 扩展
 
 在仿真中让小脑参与 rollout，扩展长尾场景。
 
@@ -312,7 +330,7 @@ selector/gate 最终输出：
 - 不能让 RL 直接绕过 follower 输出关节命令。
 - 不能用平均 reward 掩盖 fallback 突变。
 
-### 6.5 Offline 高保真或真实片段
+### 6.6 Offline 高保真或真实片段
 
 来自线下分支。
 
@@ -795,6 +813,7 @@ Phase 3 online 验收以仿真为主。
 7. fallback abruptness test。
 8. dangerous signal lead-time test。
 9. offline high-fidelity case replay。
+10. 如果使用 Mimic-derived teacher、prior 或 expert，必须通过 source lineage、许可证和 runtime_allowed 检查。
 
 ### 14.1 Release Package 扩展
 
@@ -983,4 +1002,3 @@ Phase 3 小脑光轴设计完成，需要满足：
 9. Phase 1/2 regression 通过。
 10. 生成 Phase 3 capability summary 和 known failure modes。
 11. 明确 Phase 4 本地大脑可以输入哪些 semantic hint，以及哪些 intent 条件应被拒绝或降级。
-

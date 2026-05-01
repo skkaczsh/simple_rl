@@ -10,6 +10,7 @@
 - [Phase 0 ABI 与基础设施设计](./2026-04-23-phase-0-abi-and-infra-design.md)
 - [School System 数据、训练与发布设计](./2026-04-23-school-system-data-and-release-design.md)
 - [Phase 1 基础运动底座与学校最小闭环设计](./2026-04-23-phase-1-locomotion-school-loop-design.md)
+- [Mimic Motion Prior 集成与应用测试设计](./2026-05-01-mimic-motion-prior-integration-design.md)
 
 ## 1. 目标
 
@@ -32,6 +33,7 @@
 - Phase 2 全身协调任务定义。
 - Phase 2.5-A/B/C 统一策略验收。
 - 单策略、shared trunk + multi-head、MoE、拼接式 baseline 的对照实验。
+- Mimic-style motion prior、teacher-student 和 unified controller 路线的对照实验。
 - follower 输入输出与 ABI 使用方式。
 - 上下肢互不破坏的训练和评测指标。
 - 学校系统需要收集的数据类型。
@@ -57,6 +59,7 @@
 - Phase 1 release gate dataset。
 - 学校系统经验池和 candidate release 流程。
 - 可回放的 locomotion success、near-failure、fallback、stop、brace 样本。
+- 可选 Mimic teacher、retargeted motion dataset 或 motion prior source manifest。
 
 Phase 2/2.5 不应重写 Phase 0/1 的基础 ABI，而应启用 Phase 0 已预留的 `upper_body` command 和相关 masks。
 
@@ -710,20 +713,20 @@ Phase 2.5 release gate 必须包含：
 
 ## 16. Candidate Model 对照矩阵
 
-每个候选策略都必须在同一矩阵中评测：
+每个候选策略都必须在同一矩阵中评测。Mimic 路线不是单独豁免项；如果使用 Mimic teacher、MaskedMimic/ProtoMotions 风格统一策略、AMP/ASE prior 或 ResMimic 风格 residual policy，也必须进入同一对照矩阵。
 
-| 任务族 | Unified | Shared Trunk + Heads | MoE | Stitched Baseline |
-| --- | --- | --- | --- | --- |
-| stand | required | required | required | required |
-| walk | required | required | required | required |
-| turn | required | required | required | required |
-| stop/brace | required | required | required | required |
-| single reach | required | required | required | required |
-| dual reach | required | required | required | required |
-| carry | required | required | required | required |
-| avoidance | required | required | required | required |
-| hover | required | required | required | required |
-| mode switch | required | required | required | required |
+| 任务族 | Unified | Shared Trunk + Heads | MoE | Stitched Baseline | Mimic Prior | Mimic Teacher Student |
+| --- | --- | --- | --- | --- | --- | --- |
+| stand | required | required | required | required | optional | required |
+| walk | required | required | required | required | required | required |
+| turn | required | required | required | required | required | required |
+| stop/brace | required | required | required | required | optional | required |
+| single reach | required | required | required | required | required | required |
+| dual reach | required | required | required | required | required | required |
+| carry | required | required | required | required | required | required |
+| avoidance | required | required | required | required | optional | required |
+| hover | required | required | required | required | required | required |
+| mode switch | required | required | required | required | optional | required |
 
 每个格子必须产出：
 
@@ -734,6 +737,14 @@ Phase 2.5 release gate 必须包含：
 - dangerous signal peak。
 - fallback count。
 - sample ids for failures。
+
+Mimic 路线额外必须产出：
+
+- teacher/student disagreement。
+- retargeting gap score。
+- privileged input dependency。
+- source license class。
+- runtime_allowed flag。
 
 ## 17. Follower 作为小脑 Teacher/Expert 的条件
 
@@ -927,4 +938,3 @@ Whole-body follower 统一策略设计完成，需要满足：
 6. 学校系统收集并索引协调失败、mode switch、clean whole-body success 样本。
 7. 生成候选 follower 的 evaluation report、release package 和 capability summary。
 8. 明确 follower 是否可作为 Phase 3 小脑 teacher、MoE expert 或 candidate generator。
-

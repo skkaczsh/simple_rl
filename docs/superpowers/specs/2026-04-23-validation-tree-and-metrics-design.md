@@ -14,6 +14,7 @@
 - [小脑光轴学习与消融设计](./2026-04-23-cerebellum-light-axis-learning-design.md)
 - [Model Gate、Fallback 与版本切换设计](./2026-04-23-model-gate-fallback-design.md)
 - [本地大脑语义意图接口设计](./2026-04-23-local-brain-semantic-intent-interface-design.md)
+- [Mimic Motion Prior 集成与应用测试设计](./2026-05-01-mimic-motion-prior-integration-design.md)
 
 ## 1. 目标
 
@@ -489,12 +490,15 @@ Phase 2.5 应比较：
 - shared trunk + multi-head。
 - MoE。
 - stitched baseline。
+- Mimic prior。
+- Mimic teacher-student。
 
 推荐决策：
 
 1. 如果 unified policy 或 shared trunk + multi-head 在 80% 以上任务族达到门槛，且 fallback 连续性优于 stitched baseline，则作为 Phase 3 默认底座。
 2. 如果 MoE 明显更稳，但切换连续性可被 gate 控制，则 Phase 3 小脑应按 expert/gate 架构设计。
-3. 如果所有统一路线都失败，Phase 3 仍可继续，但不能假设单一 follower 是完整 teacher，必须显式保留 expert/fallback 路径。
+3. 如果 Mimic teacher-student 显著提升协调性但依赖 privileged input 或受限许可证，则只能作为 teacher/oracle，不得作为 runtime candidate。
+4. 如果所有统一路线都失败，Phase 3 仍可继续，但不能假设单一 follower 是完整 teacher，必须显式保留 expert/fallback 路径。
 
 ### 10.5 Offline 2.5
 
@@ -513,6 +517,8 @@ Offline 2.5 failure 必须生成：
 - `expert_switch_instability`。
 - `upper_body_breaks_locomotion`。
 - `uncoordinated_com_shift`。
+- `mimic_retargeting_gap`。
+- `mimic_runtime_observation_gap`。
 - Phase 3 release gate sample。
 
 ## 11. Phase 3 Online Gate

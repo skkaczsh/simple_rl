@@ -8,6 +8,7 @@
 
 - [北极星具身智能技术架构蓝图](./2026-04-23-north-star-embodied-architecture-design.md)
 - [Phase 0 ABI 与基础设施设计](./2026-04-23-phase-0-abi-and-infra-design.md)
+- [Mimic Motion Prior 集成与应用测试设计](./2026-05-01-mimic-motion-prior-integration-design.md)
 
 ## 1. 目标
 
@@ -761,12 +762,15 @@ archived
 - shared trunk + multi-head。
 - MoE。
 - 拼接式 baseline。
+- Mimic prior。
+- Mimic teacher-student。
 
 学校输出：
 
 - 对照报告。
 - 统一 follower 是否成立的证据。
 - 进入 Phase 3 小脑训练的 teacher 或 expert 候选。
+- Mimic source manifest、retargeting gap、teacher/student disagreement 和 runtime_allowed 判定。
 
 ### 17.4 Phase 3
 
@@ -907,6 +911,7 @@ list_known_failure_modes(embodiment_id, phase)
 4. Dataset Builder 先实现 query + manifest + symlink/copy 形式，不急于做分布式数据服务。
 5. Release Manager 先实现 manifest 状态机，不急于做完整部署平台。
 6. Capability Summary 先以 JSON 文件输出，供云端大脑或本地大脑后续读取。
+7. Mimic-derived samples 先以 source manifest + episode artifact 形式接入，不急于把外部 Mimic 框架嵌入学校 runtime。
 
 这些取舍让 Phase 1 可以尽快获得学校最小闭环，同时不阻塞后续服务化。
 
@@ -918,4 +923,4 @@ list_known_failure_modes(embodiment_id, phase)
 - Gate、Fallback 与模型版本切换：定义本地 gate blending、adapter 迁移和回滚策略。
 - 小脑光轴学习与消融：定义 generator/selector 训练数据如何从学校经验池构建。
 - 线上/线下验证树与指标：定义学校如何消费线下高保真分支结果。
-
+- Mimic Motion Prior 集成与应用测试：定义外部 motion prior、teacher、expert、oracle 和受限数据如何进入学校样本、数据集版本和 release gate。

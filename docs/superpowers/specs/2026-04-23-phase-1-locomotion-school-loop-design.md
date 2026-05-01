@@ -9,6 +9,7 @@
 - [北极星具身智能技术架构蓝图](./2026-04-23-north-star-embodied-architecture-design.md)
 - [Phase 0 ABI 与基础设施设计](./2026-04-23-phase-0-abi-and-infra-design.md)
 - [School System 数据、训练与发布设计](./2026-04-23-school-system-data-and-release-design.md)
+- [Mimic Motion Prior 集成与应用测试设计](./2026-05-01-mimic-motion-prior-integration-design.md)
 
 ## 1. 目标
 
@@ -325,6 +326,13 @@ Phase 1 不要求 Transformer morphology tokens，但不能把形态输入完全
 3. 评测时分别报告 teacher-capable 指标和 deployable public-only 指标。
 
 Phase 1 发布的 stable/candidate follower 必须是 public-only 可部署模型，除非 manifest 明确标记为 teacher-only 且禁止发布到本地执行路径。
+
+Mimic-derived teacher 可以作为 Phase 1 可选加速路径，例如 DeepMimic/AMP 风格 motion prior、ProtoMotions general tracking policy 或 retargeted locomotion rollout。该路径必须满足：
+
+- Mimic rollout 转换为 NorthStar episode log。
+- source manifest 记录数据、许可证、仿真器、retarget pipeline 和 privileged input。
+- public-only student 独立通过 Phase 1 online gate。
+- teacher-only 模型不得进入 stable/candidate runtime release。
 
 ## 8. 训练流程
 
@@ -1028,4 +1036,3 @@ Phase 1 完成需要满足：
 7. 本地或仿真客户端产生 gate feedback。
 8. 生成 Phase 1 locomotion capability summary。
 9. Phase 1 online 通过后创建 offline 分支任务，不要求 offline 通过才能进入 Phase 2。
-
