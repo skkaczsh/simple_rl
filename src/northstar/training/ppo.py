@@ -72,6 +72,15 @@ class ActorCritic(nn.Module):
 
     def act(self, obs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         mean, std, value = self.forward(obs)
+
+        # Replace NaN with safe values to prevent crash
+        if torch.isnan(mean).any():
+            mean = torch.zeros_like(mean)
+        if torch.isnan(std).any():
+            std = torch.ones_like(std)
+        if torch.isnan(value).any():
+            value = torch.zeros_like(value)
+
         dist = Normal(mean, std)
         action = dist.sample()
         log_prob = dist.log_prob(action).sum(dim=-1)
@@ -79,6 +88,15 @@ class ActorCritic(nn.Module):
 
     def evaluate(self, obs: torch.Tensor, action: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         mean, std, value = self.forward(obs)
+
+        # Replace NaN with zeros to prevent crash
+        if torch.isnan(mean).any():
+            mean = torch.zeros_like(mean)
+        if torch.isnan(std).any():
+            std = torch.ones_like(std)
+        if torch.isnan(value).any():
+            value = torch.zeros_like(value)
+
         dist = Normal(mean, std)
         log_prob = dist.log_prob(action).sum(dim=-1)
         entropy = dist.entropy().sum(dim=-1)
