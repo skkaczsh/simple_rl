@@ -59,3 +59,39 @@ def validate_action(action: dict[str, Any], manifest: EmbodimentManifest) -> Non
         values = action[key]
         if len(values) != expected:
             raise ValidationError(f"action.{key} length must be {expected}")
+
+
+def validate_observation(observation: dict[str, Any], manifest: EmbodimentManifest) -> None:
+    _require_keys(
+        observation,
+        [
+            "schema_version",
+            "timestamp_s",
+            "dt_s",
+            "frame",
+            "joint_position_rad",
+            "joint_velocity_rad_s",
+            "base_linear_velocity_m_s",
+            "base_angular_velocity_rad_s",
+            "projected_gravity_base",
+            "base_height_m",
+            "foot_contact",
+            "previous_action",
+            "command",
+            "mode_mask",
+            "masks",
+        ],
+        "observation",
+    )
+    if observation["schema_version"] != "observation.northstar.v0":
+        raise ValidationError("observation.schema_version must be observation.northstar.v0")
+    expected_joints = manifest.active_joint_count
+    if len(observation["joint_position_rad"]) != expected_joints:
+        raise ValidationError(f"observation.joint_position_rad length must be {expected_joints}")
+    if len(observation["joint_velocity_rad_s"]) != expected_joints:
+        raise ValidationError(f"observation.joint_velocity_rad_s length must be {expected_joints}")
+    expected_feet = manifest.foot_contact_site_count
+    if len(observation["foot_contact"]) != expected_feet:
+        raise ValidationError(f"observation.foot_contact length must be {expected_feet}")
+    validate_command(observation["command"])
+    validate_action(observation["previous_action"], manifest)
