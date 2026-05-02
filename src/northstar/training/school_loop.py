@@ -249,3 +249,168 @@ def train_with_school(
         "output_dir": str(output_dir),
         "school_samples": school_pool.get_summary()["total_samples"] if school_pool else 0,
     }
+
+
+def train_curriculum_with_school(
+    make_envs_fn,
+    manifest: Any,
+    cfg: PPOConfig,
+    output_dir: Path,
+    curriculum: Any,
+    school_pool: SchoolExperiencePool | None = None,
+    collect_ratio: float = 0.1,
+    save_pool_interval: int = 100,
+    device: torch.device | None = None,
+) -> dict[str, Any]:
+    """Train with curriculum progression and school sample collection."""
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    obs_dim = obs_dim_for_manifest(manifest)
+    act_dim = manifest.active_joint_count
+
+    model = ActorCritic(obs_dim, act_dim).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.learning_rate)
+    buffer = RolloutBuffer()
+
+    all_log: list[dict[str, Any]] = []
+    best_reward = float("-inf")
+    total_iterations = 0
+
+    while not curriculum.is_complete:
+        stage = curriculum.current_stage
+        stage_dir = output_dir / stage.name
+        stage_dir.mkdir(parents=True, exist_ok=True)
+
+        # Update optimizer learning rate for this stage
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = stage.learning_rate
+
+        print(f"\n{'='*60}")
+        print(f"Starting stage: {stage.name} - {stage.description}")
+        print(f"Command ranges: vx={stage.vx_range}, vy={stage.vy_range}, yaw={stage.yaw_rate_range}")
+        print(f"{'='*60}\n")
+
+        stage_best = float("-inf")
+        stage_log = []
+
+        for iteration in range(stage.num_iterations):
+            t0 = time.time()
+            envs = make_envs_fn(cfg.num_envs)
+
+            # Use school-integrated rollout collection
+            rollout_stats = collect_rollout_with_school(
+                model, envs, buffer, cfg.horizon_steps, device,
+                school_pool=school_pool,
+                collect_ratio=collect_ratio,
+            )
+
+            update_stats = update_policy(model, optimizer, buffer, cfg, device)
+            buffer.clear()
+            dt = time.time() - t0
+
+            total_iterations += 1
+            avg_reward = rollout_stats["avg_reward"]
+
+            # Calculate survival rate
+            total_steps = rollout_stats["total_steps"]
+            episodes = rollout_stats["episodes"]
+            expected_episodes = cfg.num_envs * cfg.horizon_steps / 500
+            survival_rate = max(0.0, 1.0 - episodes / max(expected_episodes, 1))
+
+            # Record with curriculum manager
+            curriculum.record_iteration(avg_reward, survival_rate)
+
+            entry = {
+                "total_iteration": total_iterations,
+                "stage": stage.name,
+                "stage_iteration": iteration,
+                "avg_reward": avg_reward,
+                "episodes": episodes,
+                "survival_rate": survival_rate,
+                "pg_loss": update_stats["pg_loss"],
+                "vf_loss": update_stats["vf_loss"],
+                "entropy": update_stats["entropy"],
+                "time_s": dt,
+            }
+            all_log.append(entry)
+            stage_log.append(entry)
+
+            if (iteration + 1) % cfg.log_interval == 0:
+                school_info = ""
+                if school_pool:
+                    summary = school_pool.get_summary()
+                    school_info = f" school={summary['total_samples']} interesting={summary['interesting_episodes']}"
+                print(
+                    f"[{stage.name} {iteration+1}/{stage.num_iterations}] "
+                    f"reward={avg_reward:.3f} "
+                    f"survival={survival_rate:.2f} "
+                    f"pg_loss={update_stats['pg_loss']:.4f} "
+                    f"vf_loss={update_stats['vf_loss']:.1f} "
+                    f"time={dt:.1f}s{school_info}"
+                )
+
+            if (iteration + 1) % cfg.save_interval == 0:
+                ckpt_path = stage_dir / f"model_{iteration+1}.pt"
+                torch.save(model.state_dict(), ckpt_path)
+
+            if avg_reward > stage_best:
+                stage_best = avg_reward
+                best_path = stage_dir / "model_best.pt"
+                torch.save(model.state_dict(), best_path)
+
+            if avg_reward > best_reward:
+                best_reward = avg_reward
+                best_path = output_dir / "model_best.pt"
+                torch.save(model.state_dict(), best_path)
+
+            # Save school pool periodically
+            if school_pool and (iteration + 1) % save_pool_interval == 0:
+                school_pool.save(version=f"{stage.name}_iter_{iteration+1}")
+
+            # Check upgrade conditions
+            if curriculum.should_upgrade():
+                print(f"\n>>> Upgrade conditions met for {stage.name}!")
+                break
+
+        # Save stage log
+        stage_log_path = stage_dir / "training_log.json"
+        stage_log_path.write_text(json.dumps(stage_log, indent=2), encoding="utf-8")
+
+        # Save stage model
+        final_path = stage_dir / "model_final.pt"
+        torch.save(model.state_dict(), final_path)
+
+        # Save school pool at end of stage
+        if school_pool:
+            school_pool.save(version=f"{stage.name}_final")
+
+        # Advance to next stage
+        next_stage = curriculum.advance_stage()
+        if next_stage is None:
+            print(f"\n{'='*60}")
+            print(f"All curriculum stages completed!")
+            print(f"{'='*60}")
+        else:
+            print(f"\nAdvancing to next stage: {next_stage.name}")
+
+    # Save overall log
+    log_path = output_dir / "training_log.json"
+    log_path.write_text(json.dumps(all_log, indent=2), encoding="utf-8")
+
+    # Save final school pool
+    if school_pool:
+        school_pool.save(version="final")
+        summary = school_pool.get_summary()
+        summary_path = output_dir / "school_summary.json"
+        summary_path.write_text(json.dumps(summary, indent=2))
+
+    return {
+        "best_reward": best_reward,
+        "total_iterations": total_iterations,
+        "completed_stages": curriculum.state.completed_stages,
+        "output_dir": str(output_dir),
+        "school_samples": school_pool.get_summary()["total_samples"] if school_pool else 0,
+    }
