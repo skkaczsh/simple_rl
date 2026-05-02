@@ -337,3 +337,148 @@ def train(
         "iterations": cfg.num_iterations,
         "output_dir": str(output_dir),
     }
+
+
+def train_curriculum(
+    make_envs_fn,
+    manifest: Any,
+    cfg: PPOConfig,
+    output_dir: Path,
+    curriculum: Any,
+    device: torch.device | None = None,
+) -> dict[str, Any]:
+    """Train with curriculum progression. Each stage trains until upgrade conditions are met."""
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    obs_dim = obs_dim_for_manifest(manifest)
+    act_dim = manifest.active_joint_count
+
+    model = ActorCritic(obs_dim, act_dim).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=cfg.learning_rate)
+    buffer = RolloutBuffer()
+
+    all_log: list[dict[str, Any]] = []
+    stage_log: list[dict[str, Any]] = []
+    best_reward = float("-inf")
+    total_iterations = 0
+
+    while not curriculum.is_complete:
+        stage = curriculum.current_stage
+        stage_dir = output_dir / stage.name
+        stage_dir.mkdir(parents=True, exist_ok=True)
+
+        # Update optimizer learning rate for this stage
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = stage.learning_rate
+
+        print(f"\n{'='*60}")
+        print(f"Starting stage: {stage.name} - {stage.description}")
+        print(f"Command ranges: vx={stage.vx_range}, vy={stage.vy_range}, yaw={stage.yaw_rate_range}")
+        print(f"Target iterations: {stage.num_iterations}, min_reward: {stage.min_reward}")
+        print(f"{'='*60}\n")
+
+        stage_best = float("-inf")
+        stage_log = []
+
+        for iteration in range(stage.num_iterations):
+            t0 = time.time()
+            envs = make_envs_fn(cfg.num_envs)
+            rollout_stats = collect_rollout(model, envs, buffer, cfg.horizon_steps, device)
+            update_stats = update_policy(model, optimizer, buffer, cfg, device)
+            buffer.clear()
+            dt = time.time() - t0
+
+            total_iterations += 1
+            avg_reward = rollout_stats["avg_reward"]
+
+            # Calculate survival rate (episodes that didn't terminate early)
+            total_steps = rollout_stats["total_steps"]
+            episodes = rollout_stats["episodes"]
+            expected_episodes = cfg.num_envs * cfg.horizon_steps / 500  # rough estimate
+            survival_rate = max(0.0, 1.0 - episodes / max(expected_episodes, 1))
+
+            # Record with curriculum manager
+            curriculum.record_iteration(avg_reward, survival_rate)
+
+            entry = {
+                "total_iteration": total_iterations,
+                "stage": stage.name,
+                "stage_iteration": iteration,
+                "avg_reward": avg_reward,
+                "episodes": episodes,
+                "survival_rate": survival_rate,
+                "pg_loss": update_stats["pg_loss"],
+                "vf_loss": update_stats["vf_loss"],
+                "entropy": update_stats["entropy"],
+                "time_s": dt,
+            }
+            all_log.append(entry)
+            stage_log.append(entry)
+
+            if (iteration + 1) % cfg.log_interval == 0:
+                status = curriculum.get_status()
+                print(
+                    f"[{stage.name} {iteration+1}/{stage.num_iterations}] "
+                    f"reward={avg_reward:.3f} "
+                    f"survival={survival_rate:.2f} "
+                    f"pg_loss={update_stats['pg_loss']:.4f} "
+                    f"vf_loss={update_stats['vf_loss']:.1f} "
+                    f"entropy={update_stats['entropy']:.3f} "
+                    f"time={dt:.1f}s"
+                )
+
+            if (iteration + 1) % cfg.save_interval == 0:
+                ckpt_path = stage_dir / f"model_{iteration+1}.pt"
+                torch.save(model.state_dict(), ckpt_path)
+
+            if avg_reward > stage_best:
+                stage_best = avg_reward
+                best_path = stage_dir / "model_best.pt"
+                torch.save(model.state_dict(), best_path)
+
+            if avg_reward > best_reward:
+                best_reward = avg_reward
+                best_path = output_dir / "model_best.pt"
+                torch.save(model.state_dict(), best_path)
+
+            # Check upgrade conditions
+            if curriculum.should_upgrade():
+                print(f"\n>>> Upgrade conditions met for {stage.name}!")
+                print(f"    Recent avg reward: {sum(stage_log[-20:]) / len(stage_log[-20:]):.3f}")
+                break
+
+        # Save stage log
+        stage_log_path = stage_dir / "training_log.json"
+        stage_log_path.write_text(json.dumps(stage_log, indent=2), encoding="utf-8")
+
+        # Save stage model
+        final_path = stage_dir / "model_final.pt"
+        torch.save(model.state_dict(), final_path)
+
+        # Advance to next stage
+        next_stage = curriculum.advance_stage()
+        if next_stage is None:
+            print(f"\n{'='*60}")
+            print(f"All curriculum stages completed!")
+            print(f"{'='*60}")
+        else:
+            print(f"\nAdvancing to next stage: {next_stage.name}")
+
+    # Save overall log
+    log_path = output_dir / "training_log.json"
+    log_path.write_text(json.dumps(all_log, indent=2), encoding="utf-8")
+
+    # Save curriculum state
+    import yaml
+    state_path = output_dir / "curriculum_state.yaml"
+    state_path.write_text(yaml.dump(curriculum.get_status(), default_flow_style=False), encoding="utf-8")
+
+    return {
+        "best_reward": best_reward,
+        "total_iterations": total_iterations,
+        "completed_stages": curriculum.state.completed_stages,
+        "output_dir": str(output_dir),
+    }
