@@ -240,6 +240,11 @@ def update_policy(
 
             new_log_probs, entropy, new_values = model.evaluate(mb_obs, mb_actions)
 
+            # Check for NaN in model outputs
+            if torch.isnan(new_log_probs).any() or torch.isnan(new_values).any():
+                print(f"WARNING: NaN detected in model evaluation, skipping batch")
+                continue
+
             ratio = torch.exp(new_log_probs - mb_old_log_probs)
             surr1 = ratio * mb_advantages
             surr2 = torch.clamp(ratio, 1.0 - cfg.clip_range, 1.0 + cfg.clip_range) * mb_advantages

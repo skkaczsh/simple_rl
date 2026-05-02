@@ -54,16 +54,25 @@ def collect_rollout_with_school(
 
     # Track per-env episode state for school collection
     env_episode_ids = [f"ep_{i}" for i in range(len(envs))]
-    env_step_counts = [0] * len(envs)
-    env_episode_rewards = [0.0] * len(envs)
     collecting = [False] * len(envs)
 
     for step in range(horizon_steps):
         obs_tensors = [obs_to_tensor(o, device) for o in obs_list]
         obs_batch = torch.stack(obs_tensors)
 
+        # Check for NaN in observations
+        if torch.isnan(obs_batch).any():
+            print(f"WARNING: NaN detected in observations at step {step}")
+            obs_batch = torch.nan_to_num(obs_batch, nan=0.0)
+
         with torch.no_grad():
             action, log_prob, value = model.act(obs_batch)
+
+        # Check for NaN in model outputs
+        if torch.isnan(action).any() or torch.isnan(value).any():
+            print(f"WARNING: NaN detected in model outputs at step {step}")
+            action = torch.nan_to_num(action, nan=0.0)
+            value = torch.nan_to_num(value, nan=0.0)
 
         buffer.observations.append(obs_batch)
         buffer.actions.append(action)
@@ -83,8 +92,6 @@ def collect_rollout_with_school(
                 obs_list[i] = env.reset()
                 done_list[i] = False
                 env_episode_ids[i] = f"ep_{episode_count}_{i}"
-                env_step_counts[i] = 0
-                env_episode_rewards[i] = 0.0
 
                 # Decide whether to collect this episode
                 collecting[i] = school_pool is not None and (episode_count % max(1, int(1/collect_ratio)) == 0)
@@ -103,8 +110,6 @@ def collect_rollout_with_school(
             rewards[i] = float(result.reward_debug.get("total", 0.0))
             total_reward += rewards[i].item()
             total_steps += 1
-            env_step_counts[i] += 1
-            env_episode_rewards[i] += rewards[i].item()
 
             # Collect school sample
             if collecting[i] and school_pool:
