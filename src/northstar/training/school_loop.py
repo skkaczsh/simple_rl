@@ -56,6 +56,13 @@ def collect_rollout_with_school(
     env_episode_ids = [f"ep_{i}" for i in range(len(envs))]
     collecting = [False] * len(envs)
 
+    # Start initial episodes in school pool
+    if school_pool:
+        for i in range(len(envs)):
+            collecting[i] = (i % max(1, int(1 / collect_ratio))) == 0
+            if collecting[i]:
+                school_pool.start_episode(env_episode_ids[i])
+
     for step in range(horizon_steps):
         obs_tensors = [obs_to_tensor(o, device) for o in obs_list]
         obs_batch = torch.stack(obs_tensors)
