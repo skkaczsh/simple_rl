@@ -28,6 +28,7 @@ class PPOConfig:
     gamma: float = 0.99
     gae_lambda: float = 0.95
     clip_range: float = 0.2
+    clip_range_vf: float = 0.2
     entropy_coef: float = 0.01
     value_loss_coef: float = 0.5
     max_grad_norm: float = 0.5
@@ -216,6 +217,7 @@ def update_policy(
     obs = torch.cat(buffer.observations)
     actions = torch.cat(buffer.actions)
     old_log_probs = torch.cat(buffer.log_probs)
+    old_values = torch.cat(buffer.values)
 
     total_pg_loss = 0.0
     total_vf_loss = 0.0
@@ -234,6 +236,7 @@ def update_policy(
             mb_old_log_probs = old_log_probs[mb_idx]
             mb_advantages = advantages.view(-1)[mb_idx]
             mb_returns = returns.view(-1)[mb_idx]
+            mb_old_values = old_values.view(-1)[mb_idx]
 
             new_log_probs, entropy, new_values = model.evaluate(mb_obs, mb_actions)
 
@@ -242,7 +245,17 @@ def update_policy(
             surr2 = torch.clamp(ratio, 1.0 - cfg.clip_range, 1.0 + cfg.clip_range) * mb_advantages
             pg_loss = -torch.min(surr1, surr2).mean()
 
-            vf_loss = (new_values - mb_returns).pow(2).mean()
+            # Value clipping: clip the change in value prediction
+            if cfg.clip_range_vf > 0:
+                value_clipped = mb_old_values + torch.clamp(
+                    new_values - mb_old_values, -cfg.clip_range_vf, cfg.clip_range_vf
+                )
+                vf_loss_unclipped = (new_values - mb_returns).pow(2)
+                vf_loss_clipped = (value_clipped - mb_returns).pow(2)
+                vf_loss = 0.5 * torch.max(vf_loss_unclipped, vf_loss_clipped).mean()
+            else:
+                vf_loss = (new_values - mb_returns).pow(2).mean()
+
             entropy_loss = -entropy.mean()
 
             loss = pg_loss + cfg.value_loss_coef * vf_loss + cfg.entropy_coef * entropy_loss

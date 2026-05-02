@@ -62,9 +62,9 @@ def test_action_rate_penalty_different_action():
 
 def test_reward_config_from_yaml():
     cfg = RewardConfig.from_yaml(Path("configs/rewards/phase1_locomotion_rewards.yaml"))
-    assert cfg.w_alive == 1.0
+    assert cfg.w_alive == 2.0
     assert cfg.w_vel_xy == 2.0
-    assert cfg.sigma_vel == 0.25
+    assert cfg.sigma_vel == 0.4
 
 
 def test_compute_reward_zero_command_standing():

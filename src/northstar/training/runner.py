@@ -7,7 +7,7 @@ from typing import Any
 import yaml
 
 from northstar.embodiment.manifest import EmbodimentManifest, load_manifest
-from northstar.env.physics_mock_env import PhysicsConfig, PhysicsMockEnv
+from northstar.env.physics_mock_env import DomainRandomizationConfig, PhysicsConfig, PhysicsMockEnv
 from northstar.rewards.locomotion import RewardConfig
 
 
@@ -53,7 +53,12 @@ def run_training(config_path: Path, manifest_path: Path, output_dir: Path) -> di
     physics_cfg = cfg_raw.get("physics", {})
     training_cfg = cfg_raw.get("training", {})
 
+    # Domain randomization from config
+    dr_cfg = physics_cfg.pop("domain_randomization", {})
     physics = PhysicsConfig.from_dict(physics_cfg)
+    if dr_cfg:
+        physics.domain_randomization = DomainRandomizationConfig.from_dict(dr_cfg)
+
     reward = RewardConfig.from_yaml(Path(cfg_raw["reward"]["config_path"]))
     ppo_cfg = PPOConfig.from_dict(training_cfg)
     horizon = env_cfg.get("horizon_steps", 500)

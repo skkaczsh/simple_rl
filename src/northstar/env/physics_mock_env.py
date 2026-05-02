@@ -26,6 +26,34 @@ class PhysicsState:
     joint_target: list[float] = field(default_factory=lambda: [])
     foot_contact: list[bool] = field(default_factory=lambda: [True, True])
     previous_action: list[float] = field(default_factory=lambda: [])
+    # Domain-randomized effective parameters (set at reset)
+    effective_friction: float = 0.8
+    effective_stiffness: float = 50.0
+    effective_damping: float = 5.0
+    effective_mass: float = 30.0
+    latency_steps: int = 0
+    # Action delay buffer for control latency simulation
+    action_buffer: list[list[float]] = field(default_factory=lambda: [])
+
+
+@dataclass
+class DomainRandomizationConfig:
+    """Ranges for per-episode domain randomization."""
+    friction_range: tuple[float, float] = (0.6, 1.2)
+    stiffness_scale_range: tuple[float, float] = (0.85, 1.15)
+    damping_scale_range: tuple[float, float] = (0.8, 1.2)
+    mass_scale_range: tuple[float, float] = (0.9, 1.1)
+    latency_steps_range: tuple[int, int] = (0, 2)
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "DomainRandomizationConfig":
+        return cls(
+            friction_range=tuple(d.get("friction_range", [0.6, 1.2])),
+            stiffness_scale_range=tuple(d.get("stiffness_scale_range", [0.85, 1.15])),
+            damping_scale_range=tuple(d.get("damping_scale_range", [0.8, 1.2])),
+            mass_scale_range=tuple(d.get("mass_scale_range", [0.9, 1.1])),
+            latency_steps_range=tuple(d.get("latency_steps_range", [0, 2])),
+        )
 
 
 @dataclass
@@ -38,9 +66,11 @@ class PhysicsConfig:
     action_noise_std: float = 0.01
     dt_s: float = 0.02
     action_scale: float = 0.25
+    domain_randomization: DomainRandomizationConfig = field(default_factory=DomainRandomizationConfig)
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "PhysicsConfig":
+        dr_cfg = DomainRandomizationConfig.from_dict(d.get("domain_randomization", {}))
         return cls(
             gravity_m_s2=d.get("gravity_m_s2", -9.81),
             base_mass_kg=d.get("base_mass_kg", 30.0),
@@ -50,6 +80,7 @@ class PhysicsConfig:
             action_noise_std=d.get("action_noise_std", 0.01),
             dt_s=d.get("dt_s", 0.02),
             action_scale=d.get("action_scale", 0.25),
+            domain_randomization=dr_cfg,
         )
 
 
@@ -86,12 +117,27 @@ class PhysicsMockEnv:
         if seed is not None:
             self.rng = random.Random(seed)
         n = self.manifest.active_joint_count
+        dr = self.physics.domain_randomization
+
+        # Sample domain-randomized parameters for this episode
+        eff_friction = self.rng.uniform(*dr.friction_range)
+        eff_stiffness = self.physics.joint_stiffness * self.rng.uniform(*dr.stiffness_scale_range)
+        eff_damping = self.physics.joint_damping * self.rng.uniform(*dr.damping_scale_range)
+        eff_mass = self.physics.base_mass_kg * self.rng.uniform(*dr.mass_scale_range)
+        latency = self.rng.randint(*dr.latency_steps_range)
+
         self.state = PhysicsState(
             base_pos=[0.0, 0.0, self.manifest.default_base_height_m],
             joint_pos=[0.0] * n,
             joint_vel=[0.0] * n,
             joint_target=[0.0] * n,
             previous_action=[0.0] * n,
+            effective_friction=eff_friction,
+            effective_stiffness=eff_stiffness,
+            effective_damping=eff_damping,
+            effective_mass=eff_mass,
+            latency_steps=latency,
+            action_buffer=[[0.0] * n] * latency if latency > 0 else [],
         )
         self._cmd_vx = self.rng.uniform(*self.vx_range)
         self._cmd_vy = self.rng.uniform(*self.vy_range)
@@ -124,18 +170,26 @@ class PhysicsMockEnv:
             joint_delta[i] += noise
 
         s = self.state
+
+        # Control latency: push to buffer, use delayed action
+        if s.latency_steps > 0:
+            s.action_buffer.append(list(joint_delta))
+            delayed_delta = s.action_buffer.pop(0)
+        else:
+            delayed_delta = joint_delta
+
         s.joint_target = [
             t + d * self.physics.action_scale
-            for t, d in zip(s.joint_target, joint_delta)
+            for t, d in zip(s.joint_target, delayed_delta)
         ]
 
         for _ in range(1):
             torque = [
-                self.physics.joint_stiffness * (tgt - pos) - self.physics.joint_damping * vel
+                s.effective_stiffness * (tgt - pos) - s.effective_damping * vel
                 for tgt, pos, vel in zip(s.joint_target, s.joint_pos, s.joint_vel)
             ]
             for i in range(len(s.joint_vel)):
-                s.joint_vel[i] += (torque[i] / max(1.0, self.physics.base_mass_kg * 0.1)) * self.physics.dt_s
+                s.joint_vel[i] += (torque[i] / max(1.0, s.effective_mass * 0.1)) * self.physics.dt_s
                 s.joint_pos[i] += s.joint_vel[i] * self.physics.dt_s
 
         vx_error = self._cmd_vx - s.base_vel[0]
@@ -182,7 +236,7 @@ class PhysicsMockEnv:
 
         foot_vel_xy = [[s.base_vel[0], s.base_vel[1]]] * 2
         torques = [
-            self.physics.joint_stiffness * (tgt - pos) - self.physics.joint_damping * vel
+            s.effective_stiffness * (tgt - pos) - s.effective_damping * vel
             for tgt, pos, vel in zip(s.joint_target, s.joint_pos, s.joint_vel)
         ]
         torque_limits = [self.manifest.torque_limit_nm] * self.manifest.active_joint_count
@@ -203,7 +257,7 @@ class PhysicsMockEnv:
             projected_gravity_z=projected_gravity_z,
             foot_contact=s.foot_contact,
             foot_velocities_xy=foot_vel_xy,
-            current_action=list(joint_delta),
+            current_action=list(delayed_delta),
             previous_action=list(s.previous_action),
             joint_positions=list(s.joint_pos),
             joint_limits_lower=joint_limits_lower,
@@ -216,7 +270,7 @@ class PhysicsMockEnv:
             collision_detected=False,
         )
 
-        s.previous_action = list(joint_delta)
+        s.previous_action = list(delayed_delta)
 
         obs = self._make_observation()
         near_fall_risk = 0.8 if near_fall else 0.0
