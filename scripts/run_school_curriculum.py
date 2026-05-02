@@ -9,7 +9,7 @@ from northstar.training.school_curriculum_runner import run_school_curriculum_tr
 
 if __name__ == "__main__":
     config_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("configs/train/phase1_school_curriculum.yaml")
-    manifest_path = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("manifests/unitree_g1.yaml")
+    manifest_path = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("configs/embodiment/unitree_g1_43dof_sim_v0.json")
     output_dir = Path(sys.argv[3]) if len(sys.argv) > 3 else Path("runs/phase1_school_curriculum")
 
     print(f"Config: {config_path}")
