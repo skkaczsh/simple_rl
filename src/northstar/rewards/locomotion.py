@@ -223,11 +223,11 @@ def compute_reward(
     elif brace_request:
         r_stop_brace = r_upright
 
-    p_foot_slip = compute_foot_slip_penalty(foot_contact, foot_velocities_xy)
-    p_action_rate = compute_action_rate_penalty(current_action, previous_action)
-    p_joint_limit = compute_joint_limit_penalty(joint_positions, joint_limits_lower, joint_limits_upper)
-    p_torque = compute_torque_penalty(torques, torque_limits)
-    p_energy = compute_energy_penalty(torques, joint_velocities)
+    p_foot_slip = min(compute_foot_slip_penalty(foot_contact, foot_velocities_xy), 10.0)
+    p_action_rate = min(compute_action_rate_penalty(current_action, previous_action), 10.0)
+    p_joint_limit = min(compute_joint_limit_penalty(joint_positions, joint_limits_lower, joint_limits_upper), 5.0)
+    p_torque = min(compute_torque_penalty(torques, torque_limits), 5.0)
+    p_energy = min(compute_energy_penalty(torques, joint_velocities), 5.0)
     p_collision = 1.0 if collision_detected else 0.0
 
     total = (
@@ -245,6 +245,7 @@ def compute_reward(
         - cfg.w_energy * p_energy
         - cfg.w_collision * p_collision
     )
+    total = max(-20.0, min(20.0, total))
 
     return RewardBreakdown(
         total=total,

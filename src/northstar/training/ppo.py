@@ -181,7 +181,7 @@ def collect_rollout(
                 "feedforward_torque_nm": [0.0] * env.manifest.active_joint_count,
             }
             result = env.step(act_dict)
-            rewards[i] = result.reward_debug.get("total", 0.0)
+            rewards[i] = float(result.reward_debug.get("total", 0.0))
             total_reward += rewards[i].item()
             total_steps += 1
 
