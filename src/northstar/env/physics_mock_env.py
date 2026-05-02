@@ -140,28 +140,31 @@ class PhysicsMockEnv:
 
         vx_error = self._cmd_vx - s.base_vel[0]
         vy_error = self._cmd_vy - s.base_vel[1]
-        s.base_vel[0] += vx_error * 0.3 * self.physics.dt_s * 50
-        s.base_vel[1] += vy_error * 0.3 * self.physics.dt_s * 50
-        s.base_vel[2] += self.physics.gravity_m_s2 * self.physics.dt_s
-        s.base_pos[0] += s.base_vel[0] * self.physics.dt_s
-        s.base_pos[1] += s.base_vel[1] * self.physics.dt_s
+        s.base_vel[0] += vx_error * 3.0 * self.physics.dt_s
+        s.base_vel[1] += vy_error * 3.0 * self.physics.dt_s
+
+        height_target = self._cmd_height
+        height_error = height_target - s.base_pos[2]
+        height_kp = 80.0
+        height_kd = 10.0
+        height_force = height_kp * height_error - height_kd * s.base_vel[2]
+        s.base_vel[2] += (self.physics.gravity_m_s2 + height_force) * self.physics.dt_s
         s.base_pos[2] += s.base_vel[2] * self.physics.dt_s
 
         if s.base_pos[2] <= 0.0:
             s.base_pos[2] = 0.0
-            s.base_vel[2] = 0.0
+            s.base_vel[2] = max(0.0, s.base_vel[2])
 
-        height_target = self._cmd_height
-        height_error = height_target - s.base_pos[2]
-        s.base_vel[2] += height_error * 2.0 * self.physics.dt_s
+        s.base_pos[0] += s.base_vel[0] * self.physics.dt_s
+        s.base_pos[1] += s.base_vel[1] * self.physics.dt_s
 
         yaw_error = self._cmd_yaw - s.base_ang_vel[2]
-        s.base_ang_vel[2] += yaw_error * 2.0 * self.physics.dt_s
+        s.base_ang_vel[2] += yaw_error * 5.0 * self.physics.dt_s
         s.base_rpy[2] += s.base_ang_vel[2] * self.physics.dt_s
 
-        roll_perturb = self.rng.gauss(0, 0.01)
-        pitch_perturb = self.rng.gauss(0, 0.01)
-        s.base_rpy[0] = s.base_rpy[0] * 0.95 + roll_perturb
+        roll_perturb = self.rng.gauss(0, 0.005)
+        pitch_perturb = self.rng.gauss(0, 0.005)
+        s.base_rpy[0] = s.base_rpy[0] * 0.9 + roll_perturb
         s.base_rpy[1] = s.base_rpy[1] * 0.95 + pitch_perturb
 
         s.foot_contact = [s.base_pos[2] < self.manifest.default_base_height_m + 0.1] * 2

@@ -182,7 +182,7 @@ def collect_rollout(
             }
             result = env.step(act_dict)
             rewards[i] = result.reward_debug.get("total", 0.0)
-            total_reward += rewards[i]
+            total_reward += rewards[i].item()
             total_steps += 1
 
             if result.terminated or result.truncated:
