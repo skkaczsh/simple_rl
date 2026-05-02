@@ -62,17 +62,10 @@ def collect_rollout_with_school(
 
         # Check for NaN in observations
         if torch.isnan(obs_batch).any():
-            print(f"WARNING: NaN detected in observations at step {step}")
             obs_batch = torch.nan_to_num(obs_batch, nan=0.0)
 
         with torch.no_grad():
             action, log_prob, value = model.act(obs_batch)
-
-        # Check for NaN in model outputs
-        if torch.isnan(action).any() or torch.isnan(value).any():
-            print(f"WARNING: NaN detected in model outputs at step {step}")
-            action = torch.nan_to_num(action, nan=0.0)
-            value = torch.nan_to_num(value, nan=0.0)
 
         buffer.observations.append(obs_batch)
         buffer.actions.append(action)

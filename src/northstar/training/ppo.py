@@ -72,15 +72,6 @@ class ActorCritic(nn.Module):
 
     def act(self, obs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         mean, std, value = self.forward(obs)
-
-        # Replace NaN with safe values to prevent crash
-        if torch.isnan(mean).any():
-            mean = torch.zeros_like(mean)
-        if torch.isnan(std).any():
-            std = torch.ones_like(std)
-        if torch.isnan(value).any():
-            value = torch.zeros_like(value)
-
         dist = Normal(mean, std)
         action = dist.sample()
         log_prob = dist.log_prob(action).sum(dim=-1)
@@ -88,15 +79,6 @@ class ActorCritic(nn.Module):
 
     def evaluate(self, obs: torch.Tensor, action: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         mean, std, value = self.forward(obs)
-
-        # Replace NaN with zeros to prevent crash
-        if torch.isnan(mean).any():
-            mean = torch.zeros_like(mean)
-        if torch.isnan(std).any():
-            std = torch.ones_like(std)
-        if torch.isnan(value).any():
-            value = torch.zeros_like(value)
-
         dist = Normal(mean, std)
         log_prob = dist.log_prob(action).sum(dim=-1)
         entropy = dist.entropy().sum(dim=-1)
@@ -258,9 +240,8 @@ def update_policy(
 
             new_log_probs, entropy, new_values = model.evaluate(mb_obs, mb_actions)
 
-            # Check for NaN in model outputs
+            # Check for NaN - skip entire batch if detected
             if torch.isnan(new_log_probs).any() or torch.isnan(new_values).any():
-                print(f"WARNING: NaN detected in model evaluation, skipping batch")
                 continue
 
             ratio = torch.exp(new_log_probs - mb_old_log_probs)
