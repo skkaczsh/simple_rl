@@ -48,6 +48,7 @@ def collect_rollout_with_school(
     total_reward = 0.0
     total_steps = 0
     episode_count = 0
+    vel_sse = 0.0  # sum of squared velocity errors for RMSE
 
     obs_list = [env.reset(seed=i) for i, env in enumerate(envs)]
     done_list = [False] * len(envs)
@@ -111,6 +112,12 @@ def collect_rollout_with_school(
             total_reward += rewards[i].item()
             total_steps += 1
 
+            # Track velocity RMSE
+            cmd = result.observation.get("command", {}).get("locomotion", {})
+            cmd_vel = cmd.get("target_velocity_base_m_s", [0, 0, 0])
+            base_vel = result.observation.get("base_linear_velocity_m_s", [0, 0, 0])
+            vel_sse += (cmd_vel[0] - base_vel[0]) ** 2 + (cmd_vel[1] - base_vel[1]) ** 2
+
             # Collect school sample
             if collecting[i] and school_pool:
                 school_pool.add_step(
@@ -138,10 +145,12 @@ def collect_rollout_with_school(
                 school_pool.end_episode()
 
     avg_reward = total_reward / max(total_steps, 1)
+    velocity_rmse = (vel_sse / max(total_steps, 1)) ** 0.5
     return {
         "avg_reward": avg_reward,
         "total_steps": total_steps,
         "episodes": episode_count,
+        "velocity_rmse": velocity_rmse,
     }
 
 
@@ -201,6 +210,7 @@ def train_with_school(
             "iteration": iteration,
             "avg_reward": rollout_stats["avg_reward"],
             "episodes": rollout_stats["episodes"],
+            "velocity_rmse": rollout_stats.get("velocity_rmse", 0.0),
             "pg_loss": update_stats["pg_loss"],
             "vf_loss": update_stats["vf_loss"],
             "entropy": update_stats["entropy"],
@@ -216,6 +226,7 @@ def train_with_school(
             print(
                 f"[{iteration+1}/{cfg.num_iterations}] "
                 f"reward={rollout_stats['avg_reward']:.3f} "
+                f"vel_rmse={rollout_stats.get('velocity_rmse', 0.0):.4f} "
                 f"pg_loss={update_stats['pg_loss']:.4f} "
                 f"vf_loss={update_stats['vf_loss']:.4f} "
                 f"entropy={update_stats['entropy']:.3f} "
@@ -328,7 +339,8 @@ def train_curriculum_with_school(
             survival_rate = max(0.0, 1.0 - episodes / max(expected_episodes, 1))
 
             # Record with curriculum manager
-            curriculum.record_iteration(avg_reward, survival_rate)
+            velocity_rmse = rollout_stats.get("velocity_rmse", 0.0)
+            curriculum.record_iteration(avg_reward, survival_rate, velocity_rmse)
 
             entry = {
                 "total_iteration": total_iterations,
@@ -337,6 +349,7 @@ def train_curriculum_with_school(
                 "avg_reward": avg_reward,
                 "episodes": episodes,
                 "survival_rate": survival_rate,
+                "velocity_rmse": velocity_rmse,
                 "pg_loss": update_stats["pg_loss"],
                 "vf_loss": update_stats["vf_loss"],
                 "entropy": update_stats["entropy"],
@@ -353,6 +366,7 @@ def train_curriculum_with_school(
                 print(
                     f"[{stage.name} {iteration+1}/{stage.num_iterations}] "
                     f"reward={avg_reward:.3f} "
+                    f"vel_rmse={velocity_rmse:.4f} "
                     f"survival={survival_rate:.2f} "
                     f"pg_loss={update_stats['pg_loss']:.4f} "
                     f"vf_loss={update_stats['vf_loss']:.1f} "

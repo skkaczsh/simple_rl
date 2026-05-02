@@ -14,6 +14,26 @@ from northstar.rewards.locomotion import RewardConfig, compute_reward
 
 
 @dataclass
+class PerturbationConfig:
+    """Configuration for external push perturbations."""
+    enabled: bool = False
+    force_range_n: tuple[float, float] = (20.0, 80.0)
+    interval_steps_range: tuple[int, int] = (50, 200)
+    duration_steps: int = 5
+    lateral_only: bool = True
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "PerturbationConfig":
+        return cls(
+            enabled=d.get("enabled", False),
+            force_range_n=tuple(d.get("force_range_n", [20.0, 80.0])),
+            interval_steps_range=tuple(d.get("interval_steps_range", [50, 200])),
+            duration_steps=d.get("duration_steps", 5),
+            lateral_only=d.get("lateral_only", True),
+        )
+
+
+@dataclass
 class PhysicsState:
     step_index: int = 0
     time_s: float = 0.0
@@ -34,6 +54,10 @@ class PhysicsState:
     latency_steps: int = 0
     # Action delay buffer for control latency simulation
     action_buffer: list[list[float]] = field(default_factory=lambda: [])
+    # Perturbation state
+    active_force: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    force_steps_remaining: int = 0
+    next_perturb_step: int = -1
 
 
 @dataclass
@@ -67,10 +91,12 @@ class PhysicsConfig:
     dt_s: float = 0.02
     action_scale: float = 0.25
     domain_randomization: DomainRandomizationConfig = field(default_factory=DomainRandomizationConfig)
+    perturbation: PerturbationConfig = field(default_factory=PerturbationConfig)
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "PhysicsConfig":
         dr_cfg = DomainRandomizationConfig.from_dict(d.get("domain_randomization", {}))
+        pert_cfg = PerturbationConfig.from_dict(d.get("perturbation", {}))
         return cls(
             gravity_m_s2=d.get("gravity_m_s2", -9.81),
             base_mass_kg=d.get("base_mass_kg", 30.0),
@@ -81,6 +107,7 @@ class PhysicsConfig:
             dt_s=d.get("dt_s", 0.02),
             action_scale=d.get("action_scale", 0.25),
             domain_randomization=dr_cfg,
+            perturbation=pert_cfg,
         )
 
 
@@ -126,6 +153,11 @@ class PhysicsMockEnv:
         eff_mass = self.physics.base_mass_kg * self.rng.uniform(*dr.mass_scale_range)
         latency = self.rng.randint(*dr.latency_steps_range)
 
+        # Schedule first perturbation if enabled
+        next_perturb = -1
+        if self.physics.perturbation.enabled:
+            next_perturb = self.rng.randint(*self.physics.perturbation.interval_steps_range)
+
         self.state = PhysicsState(
             base_pos=[0.0, 0.0, self.manifest.default_base_height_m],
             joint_pos=[0.0] * n,
@@ -138,6 +170,7 @@ class PhysicsMockEnv:
             effective_mass=eff_mass,
             latency_steps=latency,
             action_buffer=[[0.0] * n] * latency if latency > 0 else [],
+            next_perturb_step=next_perturb,
         )
         self._cmd_vx = self.rng.uniform(*self.vx_range)
         self._cmd_vy = self.rng.uniform(*self.vy_range)
@@ -211,6 +244,30 @@ class PhysicsMockEnv:
 
         s.base_pos[0] += s.base_vel[0] * self.physics.dt_s
         s.base_pos[1] += s.base_vel[1] * self.physics.dt_s
+
+        # Perturbation injection
+        pcfg = self.physics.perturbation
+        if pcfg.enabled:
+            if s.force_steps_remaining > 0:
+                s.base_vel[0] += s.active_force[0] / s.effective_mass * self.physics.dt_s
+                s.base_vel[1] += s.active_force[1] / s.effective_mass * self.physics.dt_s
+                s.force_steps_remaining -= 1
+                if s.force_steps_remaining == 0:
+                    s.active_force = [0.0, 0.0, 0.0]
+                    s.next_perturb_step = s.step_index + self.rng.randint(*pcfg.interval_steps_range)
+            elif s.step_index >= s.next_perturb_step and s.next_perturb_step >= 0:
+                force_mag = self.rng.uniform(*pcfg.force_range_n)
+                if pcfg.lateral_only:
+                    angle = math.pi / 2 if self.rng.random() > 0.5 else -math.pi / 2
+                else:
+                    angle = self.rng.uniform(-math.pi, math.pi)
+                s.active_force = [force_mag * math.cos(angle), force_mag * math.sin(angle), 0.0]
+                s.force_steps_remaining = pcfg.duration_steps
+                events.append(self._event("perturbation", "info", {
+                    "force_n": force_mag,
+                    "angle_rad": angle,
+                    "duration_steps": pcfg.duration_steps,
+                }))
 
         yaw_error = self._cmd_yaw - s.base_ang_vel[2]
         s.base_ang_vel[2] += yaw_error * 5.0 * self.physics.dt_s

@@ -27,6 +27,7 @@ class CurriculumStage:
     min_iterations: int = 100
     min_reward: float = 3.5
     min_survival_rate: float = 0.8
+    max_velocity_rmse: float | None = None  # If set, RMSE must be below this
 
 
 # Default curriculum stages
@@ -118,6 +119,7 @@ class CurriculumState:
     stage_iterations: int = 0
     stage_rewards: list[float] = field(default_factory=list)
     stage_survival_rates: list[float] = field(default_factory=list)
+    stage_velocity_rmses: list[float] = field(default_factory=list)
     completed_stages: list[str] = field(default_factory=list)
     total_iterations: int = 0
 
@@ -151,10 +153,11 @@ class CurriculumManager:
     def is_complete(self) -> bool:
         return self.state.current_stage_idx >= len(self.stages)
 
-    def record_iteration(self, avg_reward: float, survival_rate: float) -> None:
+    def record_iteration(self, avg_reward: float, survival_rate: float, velocity_rmse: float = 0.0) -> None:
         """Record metrics from a training iteration."""
         self.state.stage_rewards.append(avg_reward)
         self.state.stage_survival_rates.append(survival_rate)
+        self.state.stage_velocity_rmses.append(velocity_rmse)
         self.state.stage_iterations += 1
         self.state.total_iterations += 1
 
@@ -186,6 +189,15 @@ class CurriculumManager:
         if avg_survival < stage.min_survival_rate:
             return False
 
+        # Check velocity RMSE if threshold is set
+        if stage.max_velocity_rmse is not None:
+            recent_rmse = state.stage_velocity_rmses[-20:]
+            if len(recent_rmse) < 10:
+                return False
+            avg_rmse = sum(recent_rmse) / len(recent_rmse)
+            if avg_rmse > stage.max_velocity_rmse:
+                return False
+
         return True
 
     def advance_stage(self) -> CurriculumStage | None:
@@ -199,6 +211,7 @@ class CurriculumManager:
         self.state.stage_iterations = 0
         self.state.stage_rewards = []
         self.state.stage_survival_rates = []
+        self.state.stage_velocity_rmses = []
 
         if self.is_complete:
             return None

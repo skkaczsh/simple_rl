@@ -131,6 +131,9 @@ class SchoolExperiencePool:
                 elif event_type == "tracking_error_high":
                     segment_type = "tracking_error_high"
                     priority = 0.5
+                elif event_type == "perturbation":
+                    segment_type = "perturbation"
+                    priority = 0.5
                 else:
                     segment_type = "event_injection"
                     priority = 0.4
