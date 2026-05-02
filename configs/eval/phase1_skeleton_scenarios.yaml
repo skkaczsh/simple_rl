@@ -1,0 +1,61 @@
+schema_version: scenario_set.v0
+scenario_set_id: phase1_skeleton_scenarios_v001
+phase: phase_1_skeleton
+defaults:
+  horizon_steps: 250
+  dt_s: 0.02
+  seeds: [1, 2, 3]
+scenarios:
+  - scenario_id: phase1_stand_smoke
+    policy_id: debug_noop_v0
+    command:
+      target_velocity_base_m_s: [0.0, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.0
+  - scenario_id: phase1_velocity_forward_smoke
+    policy_id: debug_simple_pd_v0
+    command:
+      target_velocity_base_m_s: [0.4, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.0
+  - scenario_id: phase1_velocity_yaw_smoke
+    policy_id: debug_simple_pd_v0
+    command:
+      target_velocity_base_m_s: [0.2, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.4
+  - scenario_id: phase1_stop_request_smoke
+    policy_id: debug_simple_pd_v0
+    command:
+      target_velocity_base_m_s: [0.4, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.0
+    command_schedule:
+      - step: 120
+        stop_request: true
+  - scenario_id: phase1_brace_request_smoke
+    policy_id: debug_simple_pd_v0
+    command:
+      target_velocity_base_m_s: [0.0, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.0
+    command_schedule:
+      - step: 100
+        brace_request: true
+  - scenario_id: phase1_action_clip_smoke
+    policy_id: debug_random_legal_v0
+    command:
+      target_velocity_base_m_s: [0.0, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.0
+    force_action_clip: true
+  - scenario_id: phase1_near_fall_sample_smoke
+    policy_id: debug_noop_v0
+    command:
+      target_velocity_base_m_s: [0.0, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.0
+    event_schedule:
+      - step: 80
+        event_type: near_fall
+  - scenario_id: phase1_school_sample_smoke
+    policy_id: debug_noop_v0
+    command:
+      target_velocity_base_m_s: [0.0, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.0
+    event_schedule:
+      - step: 20
+        event_type: event_injection

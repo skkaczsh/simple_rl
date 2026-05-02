@@ -1,0 +1,36 @@
+schema_version: scenario_set.v0
+scenario_set_id: phase0_scenarios_v001
+phase: phase_0
+defaults:
+  horizon_steps: 50
+  dt_s: 0.02
+  seeds: [1, 2, 3]
+scenarios:
+  - scenario_id: reset_stability
+    policy_id: debug_noop_v0
+    command:
+      target_velocity_base_m_s: [0.0, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.0
+  - scenario_id: zero_command_noop
+    policy_id: debug_noop_v0
+    command:
+      target_velocity_base_m_s: [0.0, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.0
+  - scenario_id: random_command_schema
+    policy_id: debug_random_legal_v0
+    command:
+      target_velocity_base_m_s: [0.2, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.1
+  - scenario_id: event_injection
+    policy_id: debug_noop_v0
+    command:
+      target_velocity_base_m_s: [0.0, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.0
+    event_schedule:
+      - step: 10
+        event_type: near_fall
+  - scenario_id: log_replay_integrity
+    policy_id: debug_noop_v0
+    command:
+      target_velocity_base_m_s: [0.0, 0.0, 0.0]
+      target_yaw_rate_rad_s: 0.0
