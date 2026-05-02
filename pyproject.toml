@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "northstar-rl"
+version = "0.1.0"
+description = "North Star Phase 0/1 runtime skeleton"
+requires-python = ">=3.11"
+dependencies = [
+  "PyYAML>=6.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+]
+
+[project.scripts]
+northstar-validate-abi = "northstar.cli:validate_abi_main"
+northstar-run-eval = "northstar.cli:run_eval_main"
+northstar-replay-episode = "northstar.cli:replay_episode_main"
+northstar-build-school-samples = "northstar.cli:build_school_samples_main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
