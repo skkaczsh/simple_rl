@@ -1,0 +1,52 @@
+schema_version: training_config.v0
+phase: phase_1a
+task: standing
+description: "Phase 1-A standing and posture stability"
+
+env:
+  env_id: physics_mock_env_v0
+  dt_s: 0.02
+  horizon_steps: 500
+  action_scale: 0.25
+  decimation: 1
+
+command:
+  vx_range: [0.0, 0.0]
+  vy_range: [0.0, 0.0]
+  yaw_rate_range: [0.0, 0.0]
+  height_range: [0.71, 0.77]
+
+physics:
+  gravity_m_s2: -9.81
+  base_mass_kg: 30.0
+  joint_stiffness: 50.0
+  joint_damping: 5.0
+  ground_friction: 0.8
+  action_noise_std: 0.01
+
+reward:
+  config_path: configs/rewards/phase1_locomotion_rewards.yaml
+
+termination:
+  base_height_min_m: 0.45
+  roll_max_rad: 0.8
+  pitch_max_rad: 0.8
+
+training:
+  algorithm: ppo
+  num_envs: 4
+  num_iterations: 100
+  batch_size: 256
+  mini_batch_size: 64
+  learning_rate: 3.0e-4
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  entropy_coef: 0.01
+  value_loss_coef: 0.5
+  max_grad_norm: 0.5
+  save_interval: 10
+  eval_interval: 10
+  log_interval: 5
+
+seed: 42
