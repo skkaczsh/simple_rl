@@ -16,7 +16,7 @@ from northstar.env.physics_mock_env import DomainRandomizationConfig, PhysicsCon
 from northstar.rewards.locomotion import RewardConfig
 from northstar.school.experience_pool import SchoolExperiencePool
 from northstar.training.curriculum import CurriculumManager, CurriculumStage
-from northstar.training.school_loop import train_with_school
+from northstar.training.school_loop import train_curriculum_with_school
 
 
 def load_config(path: Path) -> dict[str, Any]:
@@ -129,20 +129,19 @@ def run_school_curriculum_training(
             height_range=stage.height_range,
         )
 
-    # Run training with school collection
-    result = train_with_school(
+    # Run training with curriculum progression and school collection
+    result = train_curriculum_with_school(
         make_envs_fn=make_envs_fn,
         manifest=manifest,
         cfg=ppo_cfg,
         output_dir=output_dir,
+        curriculum=curriculum,
         school_pool=school_pool,
         collect_ratio=collect_ratio,
         save_pool_interval=100,
     )
 
-    # Add curriculum info to result
-    result["completed_stages"] = curriculum.state.completed_stages
-    result["total_iterations"] = curriculum.state.total_iterations
+    # Add school summary to result
     result["school_summary"] = school_pool.get_summary()
 
     return result
