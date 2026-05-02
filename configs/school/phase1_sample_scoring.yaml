@@ -1,0 +1,16 @@
+schema_version: sample_scoring.v0
+phase: phase_1_skeleton
+weights:
+  event_severity_score: 0.30
+  replay_relevance_score: 0.25
+  phase1_metric_error_score: 0.20
+  rarity_score: 0.15
+  data_quality_score: 0.10
+event_type_to_segment_type:
+  near_fall: near_failure
+  fall: fall
+  invalid_command: invalid_command
+  action_clip: action_clip
+  tracking_error_high: tracking_error_high
+  fallback_transition: fallback_transition
+  event_injection: event_injection
