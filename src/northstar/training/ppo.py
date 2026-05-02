@@ -245,16 +245,8 @@ def update_policy(
             surr2 = torch.clamp(ratio, 1.0 - cfg.clip_range, 1.0 + cfg.clip_range) * mb_advantages
             pg_loss = -torch.min(surr1, surr2).mean()
 
-            # Value clipping: clip the change in value prediction
-            if cfg.clip_range_vf > 0:
-                value_clipped = mb_old_values + torch.clamp(
-                    new_values - mb_old_values, -cfg.clip_range_vf, cfg.clip_range_vf
-                )
-                vf_loss_unclipped = (new_values - mb_returns).pow(2)
-                vf_loss_clipped = (value_clipped - mb_returns).pow(2)
-                vf_loss = 0.5 * torch.max(vf_loss_unclipped, vf_loss_clipped).mean()
-            else:
-                vf_loss = (new_values - mb_returns).pow(2).mean()
+            # Huber loss for value function (more robust to outliers than MSE)
+            vf_loss = nn.functional.smooth_l1_loss(new_values, mb_returns)
 
             entropy_loss = -entropy.mean()
 
