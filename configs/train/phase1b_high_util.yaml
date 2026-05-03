@@ -1,0 +1,147 @@
+schema_version: training_config.v0
+phase: phase_1
+task: velocity_tracking
+description: "Phase 1-B velocity tracking with high GPU utilization (80% target)"
+
+env:
+  env_id: physics_mock_env_v0
+  dt_s: 0.02
+  horizon_steps: 500
+  action_scale: 0.25
+  decimation: 1
+
+physics:
+  gravity_m_s2: -9.81
+  base_mass_kg: 30.0
+  joint_stiffness: 50.0
+  joint_damping: 5.0
+  ground_friction: 0.8
+  action_noise_std: 0.01
+  domain_randomization:
+    friction_range: [0.6, 1.2]
+    stiffness_scale_range: [0.85, 1.15]
+    damping_scale_range: [0.8, 1.2]
+    mass_scale_range: [0.9, 1.1]
+    latency_steps_range: [0, 2]
+
+reward:
+  config_path: configs/rewards/phase1_locomotion_rewards.yaml
+
+termination:
+  base_height_min_m: 0.45
+  roll_max_rad: 0.8
+  pitch_max_rad: 0.8
+
+training:
+  algorithm: ppo
+  num_envs: 32  # Increased from 4 to 32 for 80% GPU utilization
+  batch_size: 2048  # Increased proportionally
+  mini_batch_size: 256  # Increased for better GPU utilization
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  clip_range_vf: 0.2
+  entropy_coef: 0.02
+  value_loss_coef: 0.5
+  max_grad_norm: 0.5
+  save_interval: 50
+  log_interval: 10
+
+school:
+  collect_ratio: 0.2
+  max_pool_samples: 50000
+  save_interval: 100
+
+curriculum:
+  stages:
+    - name: "1A_stand_balance"
+      description: "Stand still, maintain upright posture"
+      vx_range: [0.0, 0.0]
+      vy_range: [0.0, 0.0]
+      yaw_rate_range: [0.0, 0.0]
+      height_range: [0.71, 0.77]
+      num_iterations: 300
+      learning_rate: 5.0e-5
+      min_iterations: 150
+      min_reward: 3.5
+      min_survival_rate: 0.85
+
+    - name: "1B_forward_walk"
+      description: "Walk forward at slow speed"
+      vx_range: [0.1, 0.5]
+      vy_range: [0.0, 0.0]
+      yaw_rate_range: [0.0, 0.0]
+      height_range: [0.71, 0.77]
+      num_iterations: 400
+      learning_rate: 5.0e-5
+      min_iterations: 200
+      min_reward: 3.0
+      min_survival_rate: 0.75
+      max_velocity_rmse: 0.30
+
+    - name: "1C_velocity_tracking"
+      description: "Track commanded forward and lateral velocity"
+      vx_range: [-0.3, 0.8]
+      vy_range: [-0.2, 0.2]
+      yaw_rate_range: [0.0, 0.0]
+      height_range: [0.71, 0.77]
+      num_iterations: 600
+      learning_rate: 3.0e-5
+      min_iterations: 300
+      min_reward: 3.0
+      min_survival_rate: 0.7
+      max_velocity_rmse: 0.25
+
+    - name: "1D_yaw_tracking"
+      description: "Track yaw rate commands"
+      vx_range: [-0.3, 0.8]
+      vy_range: [-0.2, 0.2]
+      yaw_rate_range: [-0.5, 0.5]
+      height_range: [0.71, 0.77]
+      num_iterations: 600
+      learning_rate: 3.0e-5
+      min_iterations: 300
+      min_reward: 2.5
+      min_survival_rate: 0.7
+      max_velocity_rmse: 0.30
+
+    - name: "1E_command_switch"
+      description: "Handle sudden command changes"
+      vx_range: [-0.5, 1.0]
+      vy_range: [-0.3, 0.3]
+      yaw_rate_range: [-0.8, 0.8]
+      height_range: [0.68, 0.80]
+      num_iterations: 500
+      learning_rate: 2.0e-5
+      min_iterations: 250
+      min_reward: 2.5
+      min_survival_rate: 0.65
+      max_velocity_rmse: 0.35
+
+    - name: "1F_full_command"
+      description: "Full command space with all directions"
+      vx_range: [-0.5, 1.0]
+      vy_range: [-0.3, 0.3]
+      yaw_rate_range: [-1.0, 1.0]
+      height_range: [0.65, 0.83]
+      num_iterations: 500
+      learning_rate: 2.0e-5
+      min_iterations: 250
+      min_reward: 2.5
+      min_survival_rate: 0.6
+      max_velocity_rmse: 0.35
+
+    - name: "1G_domain_randomization"
+      description: "Full command space with heavy domain randomization"
+      vx_range: [-0.5, 1.0]
+      vy_range: [-0.3, 0.3]
+      yaw_rate_range: [-1.0, 1.0]
+      height_range: [0.65, 0.83]
+      num_iterations: 500
+      learning_rate: 1.0e-5
+      min_iterations: 250
+      min_reward: 2.5
+      min_survival_rate: 0.6
+      max_velocity_rmse: 0.40
+
+seed: 42
