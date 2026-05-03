@@ -234,8 +234,9 @@ class PhysicsMockEnv:
         height_error = height_target - s.base_pos[2]
         height_kp = 80.0
         height_kd = 10.0
+        # PD control for height - gravity compensation built into control law
         height_force = height_kp * height_error - height_kd * s.base_vel[2]
-        s.base_vel[2] += (self.physics.gravity_m_s2 + height_force) * self.physics.dt_s
+        s.base_vel[2] += height_force * self.physics.dt_s
         s.base_pos[2] += s.base_vel[2] * self.physics.dt_s
 
         if s.base_pos[2] <= 0.0:
